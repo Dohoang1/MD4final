@@ -6,19 +6,19 @@ import com.ordersmanagement.model.ProductType;
 import com.ordersmanagement.service.OrderService;
 import com.ordersmanagement.service.ProductService;
 import com.ordersmanagement.service.ProductTypeService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
+
 
 @Controller
 @RequestMapping("/orders")
@@ -76,41 +76,38 @@ public class OrderController {
 
     @GetMapping("/edit/{id}")
     public String showEditForm(@PathVariable Long id, Model model) {
-        try {
-            Order order = orderService.getOrderById(id);
+        Order order = orderService.getOrderById(id);
+        List<ProductType> productTypes = productTypeService.getAllProductTypes();
+        List<Product> products = productService.getAllProducts();
+
+        model.addAttribute("order", order);
+        model.addAttribute("productTypes", productTypes);
+        model.addAttribute("products", products);
+
+        return "orders/edit";
+    }
+
+    @PostMapping("/update")
+    public String updateOrder(@ModelAttribute @Valid Order order,
+                              BindingResult result,
+                              Model model,
+                              RedirectAttributes redirectAttributes) {
+        if (result.hasErrors()) {
             List<ProductType> productTypes = productTypeService.getAllProductTypes();
             List<Product> products = productService.getAllProducts();
-
-            model.addAttribute("order", order);
             model.addAttribute("productTypes", productTypes);
             model.addAttribute("products", products);
             return "orders/edit";
-        } catch (RuntimeException e) {
-            model.addAttribute("errorMessage", e.getMessage());
-            return "redirect:/orders/list";
         }
+
+        orderService.updateOrder(order);
+        redirectAttributes.addFlashAttribute("successMessage", "Cập nhật đơn hàng thành công!");
+        return "redirect:/orders/list";
     }
 
-    @PostMapping("/edit")
-    public String updateOrder(
-            @ModelAttribute Order order,
-            @RequestParam("orderDateStr") String orderDateStr,
-            RedirectAttributes redirectAttributes) {
-        try {
-            // Chuyển đổi String sang LocalDateTime
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-            LocalDateTime orderDate = LocalDateTime.parse(orderDateStr, formatter);
-
-            order.setOrderDate(orderDate);
-            orderService.updateOrder(order);
-            redirectAttributes.addFlashAttribute("successMessage", "Cập nhật đơn hàng thành công!");
-            return "redirect:/orders/list";
-        } catch (DateTimeParseException e) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Định dạng ngày giờ không hợp lệ!");
-            return "redirect:/orders/edit/" + order.getId();
-        } catch (RuntimeException e) {
-            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-            return "redirect:/orders/edit/" + order.getId();
-        }
+    @GetMapping("/products-by-type")
+    @ResponseBody
+    public List<Product> getProductsByType(@RequestParam Long typeId) {
+        return productService.getProductsByProductTypeId(typeId);
     }
 }
